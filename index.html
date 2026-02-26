@@ -102,6 +102,7 @@
     pointer-events:none;
     background: rgba(120, 70, 25, 0.0);
     transition: background .15s linear;
+    z-index: 1;
   }
 
   .ground{
@@ -109,6 +110,7 @@
     left:0; right:0; bottom:0;
     height:32%;
     background: linear-gradient(180deg, rgba(255,255,255,.00), rgba(0,0,0,.20));
+    z-index: 2;
   }
 
   /* The eater */
@@ -125,6 +127,7 @@
     gap:10px;
     pointer-events:none;
     opacity:.95;
+    z-index: 5;
   }
   .table{
     position:absolute;
@@ -174,6 +177,7 @@
     font-size:18px;
     user-select:none;
     -webkit-user-select:none;
+    z-index: 10; /* keep foods below overlay */
   }
   .food .name{
     font-size:11px;
@@ -202,6 +206,7 @@
     padding:16px;
     background: rgba(0,0,0,.55);
     backdrop-filter: blur(4px);
+    z-index: 50; /* always on top */
   }
   .modal{
     width:min(420px, 100%);
@@ -264,9 +269,9 @@
         <div class="modal">
           <h2>How to play</h2>
           <p>
-            Foods fall faster over time.<br>
+            Foods fall faster over time (starts slower now).<br>
             ✅ Safe foods: let them land (+score).<br>
-            ❌ Lactose foods: tap them to block (no penalty). If they land: smell ↑ and oxygen ↓.
+            ❌ Lactose foods: tap them to block. If they land: smell ↑ and oxygen ↓.
           </p>
           <div class="row">
             <span class="pill">Safe examples: 🍌 🍎 🥑 🍗 🍚</span>
@@ -300,7 +305,7 @@
   const rnd = (a,b)=>Math.random()*(b-a)+a;
   const pick = (arr)=>arr[(Math.random()*arr.length)|0];
 
-  // Food pools (feel free to add dozens more)
+  // Food pools (add dozens more freely)
   const FOODS = [
     // lactose (avoid)
     {name:"Milk", icon:"🥛", lactose:true},
@@ -340,8 +345,10 @@
   let tPrev = 0;
 
   let spawnTimer = 0;
-  let spawnInterval = 900; // ms, will decrease (faster spawns)
-  let fallSpeed = 95;      // px/s, will increase (faster falling)
+
+  // SLOWER START (tuned)
+  let spawnInterval = 1300; // ms, will decrease (faster spawns)
+  let fallSpeed = 70;       // px/s, will increase (faster falling)
 
   const items = new Set();
 
@@ -352,8 +359,11 @@
 
     score = 0; smell = 0; oxygen = 100;
     spawnTimer = 0;
-    spawnInterval = 900;
-    fallSpeed = 95;
+
+    // reset difficulty to slower start
+    spawnInterval = 1300;
+    fallSpeed = 70;
+
     tPrev = performance.now();
     updateHUD();
     setMood();
@@ -370,7 +380,6 @@
   }
 
   function setFog(){
-    // brown fog based on smell, also slight darkening
     const a = clamp(smell/100, 0, 1);
     fog.style.background = `rgba(120, 70, 25, ${0.05 + a*0.55})`;
   }
@@ -402,11 +411,15 @@
     el.style.left = x + "px";
     el.style.top = y + "px";
 
+    const item = { el, x, y, lactose: f.lactose, hit: false };
+    items.add(item);
+
     // tap/click to block (remove). Blocking safe food is allowed but costs points a bit.
     el.addEventListener("pointerdown", (e) => {
       e.preventDefault();
       if(!running) return;
-      if(f.lactose){
+
+      if(item.lactose){
         score += 1; // reward for correct block
       } else {
         score = Math.max(0, score - 2); // small penalty for blocking safe food
@@ -416,15 +429,6 @@
     }, {passive:false});
 
     game.appendChild(el);
-
-    const item = {
-      el,
-      x, y,
-      lactose: f.lactose,
-      hit: false,
-    };
-
-    items.add(item);
   }
 
   function destroyItem(item){
@@ -438,12 +442,10 @@
     item.hit = true;
 
     if(item.lactose){
-      // lactose hit: smell up, oxygen down
       smell = clamp(smell + rnd(10, 16), 0, 100);
       oxygen = clamp(oxygen - rnd(10, 14), 0, 100);
       score = Math.max(0, score - 1);
     } else {
-      // safe hit: score up, tiny oxygen recovery
       score += 3;
       oxygen = clamp(oxygen + 1.5, 0, 100);
       smell = clamp(smell - 1.0, 0, 100);
@@ -453,7 +455,6 @@
     setFog();
     setMood();
 
-    // remove after short delay
     setTimeout(()=>destroyItem(item), 120);
   }
 
@@ -462,20 +463,20 @@
     const dt = Math.min(0.033, (now - tPrev) / 1000);
     tPrev = now;
 
-    // difficulty ramps
-    spawnInterval = Math.max(280, spawnInterval - dt*45); // faster spawns over time
-    fallSpeed = Math.min(320, fallSpeed + dt*12);         // faster falling
+    // DIFFICULTY RAMPS (slower + gentler than before)
+    spawnInterval = Math.max(420, spawnInterval - dt*30); // slower acceleration + not as extreme minimum
+    fallSpeed = Math.min(280, fallSpeed + dt*9);          // slower acceleration + lower max
 
     spawnTimer += dt*1000;
     if(spawnTimer >= spawnInterval){
       spawnTimer = 0;
       spawnFood();
       // sometimes double spawn later
-      if(spawnInterval < 500 && Math.random() < 0.22) spawnFood();
+      if(spawnInterval < 520 && Math.random() < 0.18) spawnFood();
     }
 
     const rect = game.getBoundingClientRect();
-    const landY = rect.height * 0.72; // around table height
+    const landY = rect.height * 0.72;
 
     for (const item of Array.from(items)){
       item.y += fallSpeed * dt;
@@ -505,13 +506,18 @@
 
   function gameOver(){
     running = false;
+
+    // Clear remaining foods so the overlay stays readable/clean
+    for (const it of items) it.el.remove();
+    items.clear();
+
     overlay.style.display = "flex";
     overlay.querySelector("h2").textContent = "Game over";
     overlay.querySelector("p").innerHTML =
       `The room is… <b>not breathable</b>.<br><br>
        Final score: <b>${score}</b><br>
        Smell: <b>${Math.round(smell)}%</b> · Oxygen: <b>${Math.round(oxygen)}%</b><br><br>
-       Tip: tap lactose foods early — speed ramps up fast.`;
+       Tip: tap lactose foods early — speed ramps up over time.`;
     btnPlay.textContent = "Play again";
   }
 
