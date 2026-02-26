@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Lacto Dodge — mini game</title>
+<style>
+  :root{
+    --bg:#0b1220;
+    --panel:rgba(255,255,255,.06);
+    --stroke:rgba(255,255,255,.14);
+    --text:rgba(255,255,255,.92);
+    --muted:rgba(255,255,255,.65);
+    --good:#42f59e;
+    --warn:#ffcc66;
+    --bad:#ff5b6e;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+    background: radial-gradient(900px 500px at 20% 0%, rgba(122,167,255,.18), transparent 60%),
+                radial-gradient(700px 450px at 90% 20%, rgba(154,123,255,.16), transparent 55%),
+                var(--bg);
+    color:var(--text);
+    height:100vh;
+    overflow:hidden;
+  }
+  .wrap{
+    width:min(520px, 100%);
+    height:100vh;
+    margin:0 auto;
+    padding:12px 12px 14px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  header{
+    border:1px solid var(--stroke);
+    border-radius:16px;
+    padding:10px 12px;
+    background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+  }
+  .top{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:10px;
+  }
+  h1{
+    margin:0;
+    font-size:14px;
+    letter-spacing:.2px;
+  }
+  .hint{
+    margin:6px 0 0;
+    font-size:12px;
+    color:var(--muted);
+    line-height:1.35;
+  }
+  button{
+    border:1px solid var(--stroke);
+    background:rgba(255,255,255,.06);
+    color:var(--text);
+    padding:9px 12px;
+    border-radius:999px;
+    font-weight:700;
+    cursor:pointer;
+  }
+  button:active{ transform: translateY(1px); }
+  .hud{
+    display:grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap:8px;
+  }
+  .card{
+    border:1px solid var(--stroke);
+    border-radius:14px;
+    padding:10px;
+    background:rgba(255,255,255,.04);
+  }
+  .label{font-size:11px;color:var(--muted);display:flex;justify-content:space-between;gap:8px}
+  .val{font-size:16px;font-weight:850;margin-top:4px}
+  .bar{height:8px;border-radius:999px;background:rgba(255,255,255,.10);overflow:hidden;margin-top:8px}
+  .bar > i{display:block;height:100%;width:50%;background:linear-gradient(90deg, rgba(66,245,158,.9), rgba(122,167,255,.8))}
+  .bar.bad > i{background:linear-gradient(90deg, rgba(255,91,110,.95), rgba(255,204,102,.65))}
+  .bar.warn > i{background:linear-gradient(90deg, rgba(255,204,102,.95), rgba(122,167,255,.6))}
+
+  .game{
+    position:relative;
+    flex:1;
+    border:1px solid var(--stroke);
+    border-radius:20px;
+    overflow:hidden;
+    background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.12));
+    touch-action: manipulation;
+  }
+
+  /* Room fog (gets browner with smell) */
+  .fog{
+    position:absolute; inset:0;
+    pointer-events:none;
+    background: rgba(120, 70, 25, 0.0);
+    transition: background .15s linear;
+  }
+
+  .ground{
+    position:absolute;
+    left:0; right:0; bottom:0;
+    height:32%;
+    background: linear-gradient(180deg, rgba(255,255,255,.00), rgba(0,0,0,.20));
+  }
+
+  /* The eater */
+  .eater{
+    position:absolute;
+    left:50%;
+    bottom:6%;
+    transform:translateX(-50%);
+    width:220px;
+    height:120px;
+    display:flex;
+    align-items:flex-end;
+    justify-content:center;
+    gap:10px;
+    pointer-events:none;
+    opacity:.95;
+  }
+  .table{
+    position:absolute;
+    left:50%;
+    bottom:0;
+    transform:translateX(-50%);
+    width:300px;
+    height:54px;
+    border-radius:18px;
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.14);
+    box-shadow: 0 14px 40px rgba(0,0,0,.25);
+  }
+  .person{
+    position:absolute;
+    left:50%;
+    bottom:30px;
+    transform:translateX(-50%);
+    width:74px; height:74px;
+    border-radius:22px;
+    background:rgba(255,255,255,.10);
+    border:1px solid rgba(255,255,255,.18);
+    display:flex; align-items:center; justify-content:center;
+    font-size:34px;
+  }
+  .caption{
+    position:absolute;
+    left:50%;
+    bottom:92px;
+    transform:translateX(-50%);
+    font-size:12px;
+    color:rgba(255,255,255,.72);
+    background:rgba(0,0,0,.25);
+    border:1px solid rgba(255,255,255,.12);
+    padding:6px 10px;
+    border-radius:999px;
+  }
+
+  .food{
+    position:absolute;
+    padding:10px 12px;
+    border-radius:16px;
+    border:1px solid rgba(255,255,255,.16);
+    background:rgba(255,255,255,.06);
+    backdrop-filter: blur(4px);
+    box-shadow: 0 14px 40px rgba(0,0,0,.22);
+    font-size:18px;
+    user-select:none;
+    -webkit-user-select:none;
+  }
+  .food .name{
+    font-size:11px;
+    margin-top:3px;
+    color:rgba(255,255,255,.68);
+    text-align:center;
+    max-width:90px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .food.lacto{
+    border-color: rgba(255,91,110,.35);
+    background: rgba(255,91,110,.10);
+  }
+  .food.safe{
+    border-color: rgba(66,245,158,.30);
+    background: rgba(66,245,158,.08);
+  }
+
+  .overlay{
+    position:absolute; inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:16px;
+    background: rgba(0,0,0,.55);
+    backdrop-filter: blur(4px);
+  }
+  .modal{
+    width:min(420px, 100%);
+    border:1px solid rgba(255,255,255,.16);
+    border-radius:20px;
+    background: linear-gradient(180deg, rgba(17,26,47,.98), rgba(12,18,32,.98));
+    padding:14px;
+  }
+  .modal h2{ margin:0; font-size:16px; letter-spacing:.2px; }
+  .modal p{ margin:10px 0 0; font-size:12.5px; color:rgba(255,255,255,.76); line-height:1.45; }
+  .row{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+  .pill{
+    font-size:11px;
+    padding:4px 10px;
+    border-radius:999px;
+    border:1px solid rgba(255,255,255,.18);
+    background:rgba(255,255,255,.05);
+    color:rgba(255,255,255,.70);
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="top">
+        <div>
+          <h1>Lacto Dodge <span class="pill">tap to block lactose</span></h1>
+          <div class="hint">Tap/click lactose foods to block them. Let safe foods land for points. Too much lactose → smell rises → oxygen drops → brown fog… game over.</div>
+        </div>
+        <button id="btnStart">Start</button>
+      </div>
+    </header>
+
+    <div class="hud">
+      <div class="card">
+        <div class="label"><span>Score</span><span id="scoreTxt">0</span></div>
+        <div class="val" id="scoreBig">0</div>
+      </div>
+      <div class="card">
+        <div class="label"><span>Smell</span><span id="smellTxt">0%</span></div>
+        <div class="bar bad" id="smellBar"><i></i></div>
+      </div>
+      <div class="card">
+        <div class="label"><span>Oxygen</span><span id="oxyTxt">100%</span></div>
+        <div class="bar" id="oxyBar"><i></i></div>
+      </div>
+    </div>
+
+    <div class="game" id="game">
+      <div class="fog" id="fog"></div>
+      <div class="ground"></div>
+
+      <div class="eater">
+        <div class="caption" id="mood">Feeling fine 🙂</div>
+        <div class="person">🧑‍🍽️</div>
+        <div class="table"></div>
+      </div>
+
+      <div class="overlay" id="overlay">
+        <div class="modal">
+          <h2>How to play</h2>
+          <p>
+            Foods fall faster over time.<br>
+            ✅ Safe foods: let them land (+score).<br>
+            ❌ Lactose foods: tap them to block (no penalty). If they land: smell ↑ and oxygen ↓.
+          </p>
+          <div class="row">
+            <span class="pill">Safe examples: 🍌 🍎 🥑 🍗 🍚</span>
+            <span class="pill">Lactose examples: 🥛 🧀 🍦 ☕️</span>
+          </div>
+          <div class="row">
+            <button id="btnPlay" style="flex:1">Play</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const game = document.getElementById("game");
+  const overlay = document.getElementById("overlay");
+  const btnStart = document.getElementById("btnStart");
+  const btnPlay = document.getElementById("btnPlay");
+
+  const scoreTxt = document.getElementById("scoreTxt");
+  const scoreBig = document.getElementById("scoreBig");
+  const smellTxt = document.getElementById("smellTxt");
+  const oxyTxt = document.getElementById("oxyTxt");
+  const smellBar = document.getElementById("smellBar").querySelector("i");
+  const oxyBar = document.getElementById("oxyBar").querySelector("i");
+  const fog = document.getElementById("fog");
+  const mood = document.getElementById("mood");
+
+  const clamp = (v,min,max)=>Math.max(min,Math.min(max,v));
+  const rnd = (a,b)=>Math.random()*(b-a)+a;
+  const pick = (arr)=>arr[(Math.random()*arr.length)|0];
+
+  // Food pools (feel free to add dozens more)
+  const FOODS = [
+    // lactose (avoid)
+    {name:"Milk", icon:"🥛", lactose:true},
+    {name:"Cheese", icon:"🧀", lactose:true},
+    {name:"Ice cream", icon:"🍦", lactose:true},
+    {name:"Yogurt", icon:"🥣", lactose:true},
+    {name:"Cream", icon:"🥛", lactose:true},
+    {name:"Latte", icon:"☕️", lactose:true},
+    {name:"Milk chocolate", icon:"🍫", lactose:true},
+    {name:"Butter", icon:"🧈", lactose:true},
+    {name:"Cheesecake", icon:"🍰", lactose:true},
+    {name:"Pizza (cheese)", icon:"🍕", lactose:true},
+    {name:"Milkshake", icon:"🥤", lactose:true},
+    {name:"Pudding", icon:"🍮", lactose:true},
+    // safe
+    {name:"Banana", icon:"🍌", lactose:false},
+    {name:"Apple", icon:"🍎", lactose:false},
+    {name:"Avocado", icon:"🥑", lactose:false},
+    {name:"Rice", icon:"🍚", lactose:false},
+    {name:"Egg", icon:"🥚", lactose:false},
+    {name:"Chicken", icon:"🍗", lactose:false},
+    {name:"Fish", icon:"🐟", lactose:false},
+    {name:"Salad", icon:"🥗", lactose:false},
+    {name:"Berries", icon:"🫐", lactose:false},
+    {name:"Nuts", icon:"🥜", lactose:false},
+    {name:"Tofu", icon:"🍱", lactose:false},
+    {name:"Beans", icon:"🫘", lactose:false},
+    {name:"Dark chocolate", icon:"🍫", lactose:false},
+    {name:"Olive oil", icon:"🫒", lactose:false},
+  ];
+
+  // Game state
+  let running = false;
+  let score = 0;
+  let smell = 0;    // 0..100
+  let oxygen = 100; // 0..100
+  let tPrev = 0;
+
+  let spawnTimer = 0;
+  let spawnInterval = 900; // ms, will decrease (faster spawns)
+  let fallSpeed = 95;      // px/s, will increase (faster falling)
+
+  const items = new Set();
+
+  function reset(){
+    // remove existing foods
+    for (const it of items) it.el.remove();
+    items.clear();
+
+    score = 0; smell = 0; oxygen = 100;
+    spawnTimer = 0;
+    spawnInterval = 900;
+    fallSpeed = 95;
+    tPrev = performance.now();
+    updateHUD();
+    setMood();
+    setFog();
+  }
+
+  function updateHUD(){
+    scoreTxt.textContent = score;
+    scoreBig.textContent = score;
+    smellTxt.textContent = `${Math.round(smell)}%`;
+    oxyTxt.textContent = `${Math.round(oxygen)}%`;
+    smellBar.style.width = `${clamp(smell,0,100)}%`;
+    oxyBar.style.width = `${clamp(oxygen,0,100)}%`;
+  }
+
+  function setFog(){
+    // brown fog based on smell, also slight darkening
+    const a = clamp(smell/100, 0, 1);
+    fog.style.background = `rgba(120, 70, 25, ${0.05 + a*0.55})`;
+  }
+
+  function setMood(){
+    if(oxygen <= 0){
+      mood.textContent = "…💀";
+      return;
+    }
+    if(smell < 20) mood.textContent = "Feeling fine 🙂";
+    else if(smell < 45) mood.textContent = "Uh-oh 😐";
+    else if(smell < 70) mood.textContent = "Not great 😵‍💫";
+    else mood.textContent = "Evacuate! 🤢";
+  }
+
+  function spawnFood(){
+    const rect = game.getBoundingClientRect();
+    const f = pick(FOODS);
+
+    const el = document.createElement("div");
+    el.className = "food " + (f.lactose ? "lacto" : "safe");
+    el.innerHTML = `<div style="text-align:center">${f.icon}</div><div class="name">${f.name}</div>`;
+
+    // random x, keep within bounds
+    const maxX = rect.width - 110;
+    const x = clamp(rnd(10, maxX), 8, maxX);
+    const y = -60;
+
+    el.style.left = x + "px";
+    el.style.top = y + "px";
+
+    // tap/click to block (remove). Blocking safe food is allowed but costs points a bit.
+    el.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      if(!running) return;
+      if(f.lactose){
+        score += 1; // reward for correct block
+      } else {
+        score = Math.max(0, score - 2); // small penalty for blocking safe food
+      }
+      updateHUD();
+      destroyItem(item);
+    }, {passive:false});
+
+    game.appendChild(el);
+
+    const item = {
+      el,
+      x, y,
+      lactose: f.lactose,
+      hit: false,
+    };
+
+    items.add(item);
+  }
+
+  function destroyItem(item){
+    if(!items.has(item)) return;
+    items.delete(item);
+    item.el.remove();
+  }
+
+  function onLand(item){
+    if(item.hit) return;
+    item.hit = true;
+
+    if(item.lactose){
+      // lactose hit: smell up, oxygen down
+      smell = clamp(smell + rnd(10, 16), 0, 100);
+      oxygen = clamp(oxygen - rnd(10, 14), 0, 100);
+      score = Math.max(0, score - 1);
+    } else {
+      // safe hit: score up, tiny oxygen recovery
+      score += 3;
+      oxygen = clamp(oxygen + 1.5, 0, 100);
+      smell = clamp(smell - 1.0, 0, 100);
+    }
+
+    updateHUD();
+    setFog();
+    setMood();
+
+    // remove after short delay
+    setTimeout(()=>destroyItem(item), 120);
+  }
+
+  function loop(now){
+    if(!running) return;
+    const dt = Math.min(0.033, (now - tPrev) / 1000);
+    tPrev = now;
+
+    // difficulty ramps
+    spawnInterval = Math.max(280, spawnInterval - dt*45); // faster spawns over time
+    fallSpeed = Math.min(320, fallSpeed + dt*12);         // faster falling
+
+    spawnTimer += dt*1000;
+    if(spawnTimer >= spawnInterval){
+      spawnTimer = 0;
+      spawnFood();
+      // sometimes double spawn later
+      if(spawnInterval < 500 && Math.random() < 0.22) spawnFood();
+    }
+
+    const rect = game.getBoundingClientRect();
+    const landY = rect.height * 0.72; // around table height
+
+    for (const item of Array.from(items)){
+      item.y += fallSpeed * dt;
+      item.el.style.top = item.y + "px";
+
+      if(item.y >= landY){
+        onLand(item);
+      } else if(item.y > rect.height + 120){
+        destroyItem(item);
+      }
+    }
+
+    // passive oxygen drain if smell high
+    if(smell > 50){
+      oxygen = clamp(oxygen - dt * (smell/18), 0, 100);
+      updateHUD();
+    }
+    setFog();
+
+    if(oxygen <= 0 || smell >= 100){
+      gameOver();
+      return;
+    }
+
+    requestAnimationFrame(loop);
+  }
+
+  function gameOver(){
+    running = false;
+    overlay.style.display = "flex";
+    overlay.querySelector("h2").textContent = "Game over";
+    overlay.querySelector("p").innerHTML =
+      `The room is… <b>not breathable</b>.<br><br>
+       Final score: <b>${score}</b><br>
+       Smell: <b>${Math.round(smell)}%</b> · Oxygen: <b>${Math.round(oxygen)}%</b><br><br>
+       Tip: tap lactose foods early — speed ramps up fast.`;
+    btnPlay.textContent = "Play again";
+  }
+
+  function start(){
+    reset();
+    overlay.style.display = "none";
+    running = true;
+    tPrev = performance.now();
+    requestAnimationFrame(loop);
+  }
+
+  btnStart.addEventListener("click", () => {
+    overlay.style.display = "flex";
+    btnPlay.textContent = "Play";
+  });
+  btnPlay.addEventListener("click", start);
+
+  // Prevent page scroll on touch inside game
+  game.addEventListener("touchmove", (e)=>e.preventDefault(), {passive:false});
+})();
+</script>
+</body>
+</html>
