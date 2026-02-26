@@ -11,7 +11,6 @@
     --text:rgba(255,255,255,.92);
     --muted:rgba(255,255,255,.65);
     --good:#42f59e;
-    --warn:#ffcc66;
     --bad:#ff5b6e;
   }
   *{box-sizing:border-box}
@@ -39,6 +38,8 @@
     border-radius:16px;
     padding:10px 12px;
     background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+    position:relative;
+    overflow:hidden;
   }
   .top{
     display:flex;
@@ -50,6 +51,15 @@
     margin:0;
     font-size:14px;
     letter-spacing:.2px;
+  }
+  .pill{
+    font-size:11px;
+    padding:4px 10px;
+    border-radius:999px;
+    border:1px solid rgba(255,255,255,.18);
+    background:rgba(255,255,255,.05);
+    color:rgba(255,255,255,.70);
+    white-space:nowrap;
   }
   .hint{
     margin:6px 0 0;
@@ -67,6 +77,46 @@
     cursor:pointer;
   }
   button:active{ transform: translateY(1px); }
+  button.primary{
+    border-color: rgba(122,167,255,.45);
+    background: rgba(122,167,255,.14);
+  }
+
+  /* TOP SHEET (Game Over / How-to) */
+  .topSheet{
+    margin-top:10px;
+    border:1px solid rgba(255,255,255,.16);
+    border-radius:16px;
+    background: linear-gradient(180deg, rgba(17,26,47,.98), rgba(12,18,32,.98));
+    box-shadow: 0 24px 70px rgba(0,0,0,.45);
+    padding:12px;
+    display:none;
+  }
+  .topSheet.show{ display:block; }
+  .sheetRow{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:10px;
+  }
+  .topSheet h2{
+    margin:0;
+    font-size:14px;
+    letter-spacing:.2px;
+  }
+  .topSheet p{
+    margin:8px 0 0;
+    font-size:12.5px;
+    color:rgba(255,255,255,.82);
+    line-height:1.45;
+  }
+  .sheetActions{
+    display:flex;
+    gap:8px;
+    align-items:center;
+    flex-wrap:wrap;
+    margin-top:10px;
+  }
 
   .hud{
     display:grid;
@@ -87,13 +137,21 @@
 
   .game{
     position:relative;
-    isolation:isolate; /* helps stacking order behave consistently */
+    isolation:isolate;
     flex:1;
     border:1px solid var(--stroke);
     border-radius:20px;
     overflow:hidden;
     background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.12));
     touch-action: manipulation;
+  }
+  .game.dimmed::after{
+    content:"";
+    position:absolute; inset:0;
+    background: rgba(0,0,0,.45);
+    backdrop-filter: blur(3px);
+    z-index: 2000;
+    pointer-events:none;
   }
 
   .fog{
@@ -190,38 +248,6 @@
     border-color: rgba(66,245,158,.30);
     background: rgba(66,245,158,.08);
   }
-
-  /* IMPORTANT: fixed overlay + very high z-index => always above foods */
-  .overlay{
-    position:fixed;
-    inset:0;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    padding:16px;
-    background: rgba(0,0,0,.65);
-    backdrop-filter: blur(6px);
-    z-index: 9999;
-  }
-  .modal{
-    width:min(420px, 100%);
-    border:1px solid rgba(255,255,255,.16);
-    border-radius:20px;
-    background: linear-gradient(180deg, rgba(17,26,47,.98), rgba(12,18,32,.98));
-    padding:14px;
-    box-shadow: 0 30px 90px rgba(0,0,0,.55);
-  }
-  .modal h2{ margin:0; font-size:16px; letter-spacing:.2px; }
-  .modal p{ margin:10px 0 0; font-size:12.5px; color:rgba(255,255,255,.82); line-height:1.45; }
-  .row{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
-  .pill{
-    font-size:11px;
-    padding:4px 10px;
-    border-radius:999px;
-    border:1px solid rgba(255,255,255,.18);
-    background:rgba(255,255,255,.05);
-    color:rgba(255,255,255,.70);
-  }
 </style>
 </head>
 <body>
@@ -231,11 +257,30 @@
         <div>
           <h1>Lacto Dodge <span class="pill">tap to block lactose</span></h1>
           <div class="hint">
-            Tap/click lactose foods to block them. Let safe foods land for points.
+            Tap lactose foods to block them. Let safe foods land for points.
             Too much lactose → smell rises → oxygen drops → brown fog… game over.
           </div>
         </div>
         <button id="btnStart">Start</button>
+      </div>
+
+      <!-- TOP SHEET (shows instructions / game over) -->
+      <div class="topSheet show" id="sheet">
+        <div class="sheetRow">
+          <div>
+            <h2 id="sheetTitle">How to play</h2>
+            <p id="sheetText">
+              ✅ Safe foods: let them land (+score).<br>
+              ❌ Lactose foods: tap them to block. If they land: smell ↑ and oxygen ↓.<br><br>
+              Warm-up: first <b>10</b> seconds are slower to feel fair.
+            </p>
+          </div>
+          <div class="pill" id="sheetTag">READY</div>
+        </div>
+        <div class="sheetActions">
+          <button class="primary" id="btnPlay" style="flex:1">Play</button>
+          <button id="btnCloseSheet" style="display:none">Close</button>
+        </div>
       </div>
     </header>
 
@@ -254,10 +299,9 @@
       </div>
     </div>
 
-    <div class="game" id="game">
+    <div class="game dimmed" id="game">
       <div class="fog" id="fog"></div>
       <div class="ground"></div>
-
       <div class="eater">
         <div class="caption" id="mood">Feeling fine 🙂</div>
         <div class="person">🧑‍🍽️</div>
@@ -266,34 +310,18 @@
     </div>
   </div>
 
-  <!-- Overlay is fixed (outside game) so it always sits on top -->
-  <div class="overlay" id="overlay">
-    <div class="modal">
-      <h2 id="ovTitle">How to play</h2>
-      <p id="ovText">
-        ✅ Safe foods: let them land (+score).<br>
-        ❌ Lactose foods: tap them to block. If they land: smell ↑ and oxygen ↓.<br><br>
-        Warm-up: the first 10 seconds are slower to feel fair.
-      </p>
-      <div class="row">
-        <span class="pill">Safe examples: 🍌 🍎 🥑 🍗 🍚</span>
-        <span class="pill">Lactose examples: 🥛 🧀 🍦 ☕️</span>
-      </div>
-      <div class="row">
-        <button id="btnPlay" style="flex:1">Play</button>
-      </div>
-    </div>
-  </div>
-
 <script>
 (() => {
   const game = document.getElementById("game");
-  const overlay = document.getElementById("overlay");
+
   const btnStart = document.getElementById("btnStart");
   const btnPlay = document.getElementById("btnPlay");
+  const btnCloseSheet = document.getElementById("btnCloseSheet");
 
-  const ovTitle = document.getElementById("ovTitle");
-  const ovText = document.getElementById("ovText");
+  const sheet = document.getElementById("sheet");
+  const sheetTitle = document.getElementById("sheetTitle");
+  const sheetText = document.getElementById("sheetText");
+  const sheetTag = document.getElementById("sheetTag");
 
   const scoreTxt = document.getElementById("scoreTxt");
   const scoreBig = document.getElementById("scoreBig");
@@ -339,7 +367,6 @@
     {name:"Olive oil", icon:"🫒", lactose:false},
   ];
 
-  // State
   let running = false;
   let score = 0;
   let smell = 0;
@@ -347,13 +374,50 @@
   let tPrev = 0;
 
   let spawnTimer = 0;
-  let spawnInterval = 1500; // start slower than before
-  let fallSpeed = 60;       // start slower than before
-
-  let elapsed = 0;          // seconds since start
+  let spawnInterval = 1500; // slower start
+  let fallSpeed = 60;       // slower start
+  let elapsed = 0;
   const WARMUP_SECONDS = 10;
 
   const items = new Set();
+
+  function setSheet(mode, data={}){
+    sheet.classList.add("show");
+
+    if(mode === "howto"){
+      sheetTitle.textContent = "How to play";
+      sheetTag.textContent = "READY";
+      sheetText.innerHTML =
+        `✅ Safe foods: let them land (+score).<br>
+         ❌ Lactose foods: tap them to block. If they land: smell ↑ and oxygen ↓.<br><br>
+         Warm-up: first <b>${WARMUP_SECONDS}</b> seconds are slower to feel fair.`;
+      btnPlay.textContent = "Play";
+      btnCloseSheet.style.display = "none";
+      btnPlay.style.display = "inline-flex";
+      game.classList.add("dimmed");
+      game.style.pointerEvents = "none";
+    }
+
+    if(mode === "gameover"){
+      sheetTitle.textContent = "Game over";
+      sheetTag.textContent = "NOT BREATHABLE";
+      sheetText.innerHTML =
+        `Final score: <b>${data.score}</b><br>
+         Smell: <b>${data.smell}%</b> · Oxygen: <b>${data.oxygen}%</b><br><br>
+         Tip: tap lactose foods early — and don’t waste taps on safe foods.`;
+      btnPlay.textContent = "Play again";
+      btnCloseSheet.style.display = "inline-flex";
+      btnPlay.style.display = "inline-flex";
+      game.classList.add("dimmed");
+      game.style.pointerEvents = "none";
+    }
+
+    if(mode === "hidden"){
+      sheet.classList.remove("show");
+      game.classList.remove("dimmed");
+      game.style.pointerEvents = "auto";
+    }
+  }
 
   function reset(){
     for (const it of items) it.el.remove();
@@ -361,8 +425,6 @@
 
     score = 0; smell = 0; oxygen = 100;
     spawnTimer = 0;
-
-    // Warm-up start values
     spawnInterval = 1500;
     fallSpeed = 60;
     elapsed = 0;
@@ -406,11 +468,10 @@
     const maxX = rect.width - 110;
     const x = clamp(rnd(10, maxX), 8, maxX);
     const y = -60;
-
     el.style.left = x + "px";
     el.style.top = y + "px";
 
-    const item = { el, x, y, lactose: f.lactose, hit: false };
+    const item = { el, x, y, lactose: f.lactose, hit:false };
     items.add(item);
 
     el.addEventListener("pointerdown", (e) => {
@@ -460,13 +521,10 @@
     tPrev = now;
     elapsed += dt;
 
-    // --- Fair warm-up for first 10 seconds ---
     if(elapsed < WARMUP_SECONDS){
-      // very gentle ramp
-      spawnInterval = Math.max(900, spawnInterval - dt*18); // stays slower
-      fallSpeed = Math.min(120, fallSpeed + dt*5);          // slow increase
+      spawnInterval = Math.max(900, spawnInterval - dt*18);
+      fallSpeed = Math.min(120, fallSpeed + dt*5);
     } else {
-      // normal ramp (still gentler than the original version)
       spawnInterval = Math.max(420, spawnInterval - dt*30);
       fallSpeed = Math.min(280, fallSpeed + dt*9);
     }
@@ -475,17 +533,13 @@
     if(spawnTimer >= spawnInterval){
       spawnTimer = 0;
       spawnFood();
-
-      // only allow double spawns after warm-up, and slightly reduced chance
-      if(elapsed >= WARMUP_SECONDS && spawnInterval < 520 && Math.random() < 0.16){
-        spawnFood();
-      }
+      if(elapsed >= WARMUP_SECONDS && spawnInterval < 520 && Math.random() < 0.16) spawnFood();
     }
 
     const rect = game.getBoundingClientRect();
     const landY = rect.height * 0.72;
 
-    for (const item of Array.from(items)){
+    for(const item of Array.from(items)){
       item.y += fallSpeed * dt;
       item.el.style.top = item.y + "px";
 
@@ -493,9 +547,8 @@
       else if(item.y > rect.height + 120) destroyItem(item);
     }
 
-    // passive oxygen drain if smell high
     if(smell > 50){
-      oxygen = clamp(oxygen - dt * (smell/18), 0, 100);
+      oxygen = clamp(oxygen - dt*(smell/18), 0, 100);
       updateHUD();
     }
     setFog();
@@ -508,55 +561,37 @@
     requestAnimationFrame(loop);
   }
 
-  function showOverlay(title, html, buttonText){
-    ovTitle.textContent = title;
-    ovText.innerHTML = html;
-    btnPlay.textContent = buttonText;
-    overlay.style.display = "flex";
-  }
-
-  function hideOverlay(){
-    overlay.style.display = "none";
-  }
-
   function gameOver(){
     running = false;
 
-    // Clear remaining foods so the overlay is always readable
-    for (const it of items) it.el.remove();
+    // clear remaining foods
+    for(const it of items) it.el.remove();
     items.clear();
 
-    showOverlay(
-      "Game over",
-      `The room is… <b>not breathable</b>.<br><br>
-       Final score: <b>${score}</b><br>
-       Smell: <b>${Math.round(smell)}%</b> · Oxygen: <b>${Math.round(oxygen)}%</b><br><br>
-       Tip: the first 10 seconds are warm-up — then it ramps up.`,
-      "Play again"
-    );
+    setSheet("gameover", {
+      score,
+      smell: Math.round(smell),
+      oxygen: Math.round(oxygen)
+    });
   }
 
   function start(){
     reset();
-    hideOverlay();
+    setSheet("hidden");
     running = true;
     tPrev = performance.now();
     requestAnimationFrame(loop);
   }
 
-  btnStart.addEventListener("click", () => {
-    showOverlay(
-      "How to play",
-      `✅ Safe foods: let them land (+score).<br>
-       ❌ Lactose foods: tap them to block. If they land: smell ↑ and oxygen ↓.<br><br>
-       Warm-up: first <b>${WARMUP_SECONDS}</b> seconds are slower to feel fair.`,
-      "Play"
-    );
-  });
-
+  // UI events
+  btnStart.addEventListener("click", () => setSheet("howto"));
   btnPlay.addEventListener("click", start);
+  btnCloseSheet.addEventListener("click", () => setSheet("howto"));
 
-  // Prevent page scroll on touch inside game
+  // initial state
+  setSheet("howto");
+
+  // prevent scroll inside game
   game.addEventListener("touchmove", (e)=>e.preventDefault(), {passive:false});
 })();
 </script>
